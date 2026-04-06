@@ -1,6 +1,10 @@
 # R36S SDL3 Demo App
 
-A joystick input demo for the R36S handheld, built with [go-sdl3](https://github.com/Zyko0/go-sdl3). Displays two analog stick visualizations, reacts to button presses with text feedback, and plays audio. SDL3 is bundled inside the binary — no system SDL3 installation needed on the device.
+This is a port to go-sdl3 of the code at <https://github.com/AndreRenaud/r36s-demo-app> demonstrating the feasibility of running go-sdlX programs to the r36s. See <https://ignavus.net/r36s> for more info about the original project.
+
+The program is a joystick input demo for the R36S handheld, built with [go-sdl3](https://github.com/Zyko0/go-sdl3). Displays two analog stick visualizations, reacts to button presses with text feedback, and plays audio. SDL3 is bundled inside the binary — no system SDL3 installation needed on the device.
+
+> As of 2026-04-06, I manage to compile and run the app on the R36S, but there is no reaction to the joystick input, so the program hangs, displaying two circles. The same thing happens on my linux laptop with a joystick plugged in, so I suppose the issue is not specific to the R36S, but rather to the port (done essentially by Claude).
 
 ## Prerequisites (build machine)
 
