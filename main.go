@@ -116,22 +116,68 @@ func main() {
 	defer binmix.Load().Unload()
 	defer binttf.Load().Unload()
 
+	v := sdl.GetVersion()
+	fmt.Printf("SDL version: %d.%d.%d\n", v/1000000, (v/1000)%1000, v%1000)
+
+	sdl.SetHint(sdl.HINT_VIDEO_DRIVER, "kmsdrm")
+	sdl.SetHint(sdl.HINT_RENDER_DRIVER, "opengles2")
+	sdl.SetHint(sdl.HINT_AUDIO_DRIVER, "alsa")
+
 	if err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS | sdl.INIT_AUDIO); err != nil {
 		log.Fatalf("SDL init: %s", err)
 	}
 	defer sdl.Quit()
+
+	fmt.Println("Current video driver:", sdl.GetCurrentVideoDriver())
+	fmt.Println("Available video drivers:")
+	for i := 0; i < sdl.GetNumVideoDrivers(); i++ {
+		fmt.Printf("  %d: %s\n", i, sdl.GetVideoDriver(i))
+	}
 
 	if err := ttf.Init(); err != nil {
 		log.Fatalf("TTF init: %s", err)
 	}
 	defer ttf.Quit()
 
-	window, renderer, err := sdl.CreateWindowAndRenderer("test", 640, 480, 0)
+	sdl.SetHint(sdl.HINT_VIDEO_FORCE_EGL, "1")
+	sdl.SetHint(sdl.HINT_OPENGL_ES_DRIVER, "1")
+	sdl.SetHint(sdl.HINT_KMSDRM_DEVICE_INDEX, "0") // Try 0, sometimes 1 is needed on RK3326
+
+	// Explicitly request an OpenGL ES 2.0 context
+	sdl.GL_SetAttribute(sdl.GL_CONTEXT_PROFILE_MASK, sdl.GL_CONTEXT_PROFILE_ES)
+	sdl.GL_SetAttribute(sdl.GL_CONTEXT_MAJOR_VERSION, 2)
+	sdl.GL_SetAttribute(sdl.GL_CONTEXT_MINOR_VERSION, 0)
+
+	window, err := sdl.CreateWindow("test", 640, 480, sdl.WINDOW_FULLSCREEN|sdl.WINDOW_OPENGL)
 	if err != nil {
-		log.Fatalf("CreateWindowAndRenderer: %s", err)
+		// If creating with OPENGL fails, try creating without it
+		fmt.Printf("CreateWindow with OPENGL failed: %s, trying without...\n", err)
+		window, err = sdl.CreateWindow("test", 640, 480, sdl.WINDOW_FULLSCREEN)
+		if err != nil {
+			log.Fatalf("CreateWindow fallback: %s", err)
+		}
+	}
+	defer window.Destroy()
+
+	renderer, err := window.CreateRenderer("opengles2")
+	if err != nil {
+		fmt.Printf("Warning: opengles2 renderer failed: %s, trying default\n", err)
+		renderer, err = window.CreateRenderer("")
+		if err != nil {
+			fmt.Printf("Warning: default renderer failed: %s, trying software\n", err)
+			renderer, err = window.CreateRenderer("software")
+			if err != nil {
+				log.Fatalf("CreateRenderer: %s", err)
+			}
+		}
 	}
 	defer renderer.Destroy()
-	defer window.Destroy()
+
+	if name, err := renderer.Name(); err == nil {
+		fmt.Printf("Renderer: %s\n", name)
+	} else {
+		fmt.Printf("Renderer Name: <unknown> (err: %s)\n", err)
+	}
 
 	sdl.HideCursor()
 	sdl.SetJoystickEventsEnabled(true)
