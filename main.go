@@ -7,9 +7,9 @@ import (
 	"math"
 	"time"
 
-	_ "github.com/Zyko0/go-sdl3/bin/binmix"
-	_ "github.com/Zyko0/go-sdl3/bin/binsdl"
-	_ "github.com/Zyko0/go-sdl3/bin/binttf"
+	"github.com/Zyko0/go-sdl3/bin/binmix"
+	"github.com/Zyko0/go-sdl3/bin/binsdl"
+	"github.com/Zyko0/go-sdl3/bin/binttf"
 	"github.com/Zyko0/go-sdl3/mixer"
 	"github.com/Zyko0/go-sdl3/sdl"
 	"github.com/Zyko0/go-sdl3/ttf"
@@ -112,15 +112,19 @@ func (t *TextDisplay) Close() {
 }
 
 func main() {
-	if err := ttf.Init(); err != nil {
-		log.Fatalf("TTF init: %s", err)
-	}
-	defer ttf.Quit()
+	defer binsdl.Load().Unload()
+	defer binmix.Load().Unload()
+	defer binttf.Load().Unload()
 
 	if err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS | sdl.INIT_AUDIO); err != nil {
 		log.Fatalf("SDL init: %s", err)
 	}
 	defer sdl.Quit()
+
+	if err := ttf.Init(); err != nil {
+		log.Fatalf("TTF init: %s", err)
+	}
+	defer ttf.Quit()
 
 	window, renderer, err := sdl.CreateWindowAndRenderer("test", 640, 480, 0)
 	if err != nil {
