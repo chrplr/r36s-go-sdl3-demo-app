@@ -1,17 +1,18 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
-	"image/color"
 	"log"
+	"math"
 	"time"
 
-	"github.com/veandco/go-sdl2/gfx"
-	"github.com/veandco/go-sdl2/mix"
-	"github.com/veandco/go-sdl2/sdl"
-	"github.com/veandco/go-sdl2/ttf"
-
-	_ "embed"
+	_ "github.com/Zyko0/go-sdl3/bin/binmix"
+	_ "github.com/Zyko0/go-sdl3/bin/binsdl"
+	_ "github.com/Zyko0/go-sdl3/bin/binttf"
+	"github.com/Zyko0/go-sdl3/mixer"
+	"github.com/Zyko0/go-sdl3/sdl"
+	"github.com/Zyko0/go-sdl3/ttf"
 )
 
 //go:embed Lato-Bold.ttf
@@ -21,15 +22,50 @@ var latoBold []byte
 var soundData []byte
 
 type JoystickDisplay struct {
-	x, y       int32
-	radius     int32
+	x, y       float32
+	radius     float32
 	joyX, joyY float32
 	pressed    bool
 }
 
+func (j *JoystickDisplay) Render(renderer *sdl.Renderer) {
+	col := sdl.FColor{R: 1, G: 0, B: 0, A: 1}
+	if j.pressed {
+		col = sdl.FColor{R: 1, G: 1, B: 0, A: 1}
+	}
+	renderFilledCircle(renderer, j.x, j.y, j.radius, col)
+
+	joyposx := j.x + j.radius*j.joyX
+	joyposy := j.y + j.radius*j.joyY
+	renderFilledCircle(renderer, joyposx, joyposy, j.radius/5, sdl.FColor{R: 0, G: 1, B: 0, A: 1})
+}
+
+func renderFilledCircle(renderer *sdl.Renderer, cx, cy, r float32, col sdl.FColor) {
+	const segments = 64
+	vertices := make([]sdl.Vertex, segments+2)
+	vertices[0] = sdl.Vertex{Position: sdl.FPoint{X: cx, Y: cy}, Color: col}
+	for i := 0; i <= segments; i++ {
+		angle := float64(i) / float64(segments) * 2 * math.Pi
+		vertices[i+1] = sdl.Vertex{
+			Position: sdl.FPoint{
+				X: cx + r*float32(math.Cos(angle)),
+				Y: cy + r*float32(math.Sin(angle)),
+			},
+			Color: col,
+		}
+	}
+	indices := make([]int32, segments*3)
+	for i := 0; i < segments; i++ {
+		indices[i*3] = 0
+		indices[i*3+1] = int32(i + 1)
+		indices[i*3+2] = int32(i + 2)
+	}
+	renderer.RenderGeometry(nil, vertices, indices)
+}
+
 type TextDisplay struct {
-	x, y    int32
-	color   color.NRGBA
+	x, y    float32
+	color   sdl.Color
 	font    *ttf.Font
 	text    string
 	texture *sdl.Texture
@@ -39,7 +75,7 @@ type TextDisplay struct {
 func (t *TextDisplay) SetText(text string) error {
 	t.Close()
 	t.text = text
-	surface, err := t.font.RenderUTF8Blended(t.text, sdl.Color(t.color))
+	surface, err := t.font.RenderTextBlended(t.text, t.color)
 	if err != nil {
 		log.Printf("Cannot set text: %s", err)
 		return err
@@ -60,115 +96,108 @@ func (t *TextDisplay) Render(renderer *sdl.Renderer) {
 		}
 		t.texture = texture
 	}
-	r := sdl.Rect{X: t.x, Y: t.y, W: t.surface.W, H: t.surface.H}
-	renderer.Copy(t.texture, nil, &r)
+	r := sdl.FRect{X: t.x, Y: t.y, W: float32(t.surface.W), H: float32(t.surface.H)}
+	renderer.RenderTexture(t.texture, nil, &r)
 }
 
-func (t *TextDisplay) Close() error {
+func (t *TextDisplay) Close() {
 	if t.texture != nil {
 		t.texture.Destroy()
 		t.texture = nil
 	}
 	if t.surface != nil {
-		t.surface.Free()
+		t.surface.Destroy()
 		t.surface = nil
 	}
-	return nil
-}
-func (j *JoystickDisplay) Render(renderer *sdl.Renderer) {
-	col := sdl.Color(color.NRGBA{255, 0, 0, 255})
-	if j.pressed {
-		col = sdl.Color(color.NRGBA{255, 255, 0, 255})
-	}
-	gfx.FilledCircleColor(renderer, j.x, j.y, j.radius, col)
-
-	joyposx := j.x + int32(float32(j.radius)*j.joyX)
-	joyposy := j.y + int32(float32(j.radius)*j.joyY)
-	col = sdl.Color(color.NRGBA{0, 255, 0, 255})
-	gfx.FilledCircleColor(renderer, joyposx, joyposy, j.radius/5, col)
 }
 
 func main() {
-	var font *ttf.Font
-
 	if err := ttf.Init(); err != nil {
-		return
+		log.Fatalf("TTF init: %s", err)
 	}
 	defer ttf.Quit()
 
-	if err := sdl.Init(sdl.INIT_EVERYTHING); err != nil {
-		panic(err)
+	if err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS | sdl.INIT_AUDIO); err != nil {
+		log.Fatalf("SDL init: %s", err)
 	}
 	defer sdl.Quit()
 
-	window, err := sdl.CreateWindow("test", sdl.WINDOWPOS_UNDEFINED, sdl.WINDOWPOS_UNDEFINED, 640, 480, sdl.WINDOW_SHOWN)
+	window, renderer, err := sdl.CreateWindowAndRenderer("test", 640, 480, 0)
 	if err != nil {
-		panic(err)
-	}
-	defer window.Destroy()
-
-	if err := mix.OpenAudio(44100, mix.DEFAULT_FORMAT, 2, 4096); err != nil {
-		panic(err)
-	}
-	defer mix.CloseAudio()
-
-	renderer, err := sdl.CreateRenderer(window, -1, sdl.RENDERER_ACCELERATED)
-	if err != nil {
-		log.Printf("Couldn't get accelerated renderer: %s", err)
-		renderer, err = sdl.CreateRenderer(window, -1, sdl.RENDERER_SOFTWARE)
-		if err != nil {
-			panic(err)
-		}
+		log.Fatalf("CreateWindowAndRenderer: %s", err)
 	}
 	defer renderer.Destroy()
+	defer window.Destroy()
 
-	sdl.ShowCursor(sdl.DISABLE)
+	sdl.HideCursor()
+	sdl.SetJoystickEventsEnabled(true)
 
-	sdl.JoystickEventState(sdl.ENABLE)
-
-	if rinfo, err := renderer.GetInfo(); err == nil {
-		log.Printf("Renderer info: %#v", rinfo)
+	// Font
+	fontStream, err := sdl.IOFromConstMem(latoBold)
+	if err != nil {
+		log.Fatalf("IOFromConstMem font: %s", err)
 	}
-	log.Printf("Renderer: %#v", renderer)
-	log.Printf("Window: %#v", window)
-	log.Printf("num joysticks: %d", sdl.NumJoysticks())
+	font, err := ttf.OpenFontIO(fontStream, true, 48)
+	if err != nil {
+		log.Fatalf("OpenFontIO: %s", err)
+	}
+	defer font.Close()
 
-	var joysticks [16]*sdl.Joystick
+	text := TextDisplay{
+		x:     10,
+		y:     30,
+		color: sdl.Color{R: 255, G: 0, B: 255, A: 255},
+		font:  font,
+	}
+
+	// Audio
+	var mixerDev *mixer.Mixer
+	var musicTrack *mixer.Track
+
+	if err := mixer.Init(); err != nil {
+		log.Printf("Mixer init failed (audio disabled): %s", err)
+	} else {
+		defer mixer.Quit()
+
+		mixerDev, err = mixer.CreateMixerDevice(sdl.AUDIO_DEVICE_DEFAULT_PLAYBACK, nil)
+		if err != nil {
+			log.Printf("CreateMixerDevice failed (audio disabled): %s", err)
+		} else {
+			defer mixerDev.Destroy()
+
+			soundStream, err := sdl.IOFromConstMem(soundData)
+			if err != nil {
+				log.Printf("IOFromConstMem sound: %s", err)
+			} else {
+				audio, err := mixerDev.LoadAudio_IO(soundStream, true, true)
+				if err != nil {
+					log.Printf("LoadAudio_IO failed: %s", err)
+				} else {
+					defer audio.Destroy()
+
+					musicTrack, err = mixerDev.CreateTrack()
+					if err != nil {
+						log.Printf("CreateTrack failed: %s", err)
+						musicTrack = nil
+					} else {
+						defer musicTrack.Destroy()
+						musicTrack.SetAudio(audio)
+						musicTrack.SetGain(0.375) // ~48/128 from original SDL2 code
+					}
+				}
+			}
+		}
+	}
 
 	j1 := &JoystickDisplay{x: 100, y: 300, radius: 50}
 	j2 := &JoystickDisplay{x: 540, y: 300, radius: 50}
 
-	fontOps, err := sdl.RWFromMem(latoBold)
-	if err != nil {
-		panic(err)
-	}
-	// Load the font for our text
-	if font, err = ttf.OpenFontRW(fontOps, 0, 48); err != nil {
-		panic(err)
-	}
-	defer font.Close()
-	defer fontOps.Close()
-
-	text := TextDisplay{x: 10, y: 30, color: color.NRGBA{255, 0, 255, 255}, font: font}
-
-	mix.VolumeMusic(48) // Turn the volume down a bit
-	mixOps, err := sdl.RWFromMem(soundData)
-	if err != nil {
-		panic(err)
-	}
-
-	mus, err := mix.LoadMUSRW(mixOps, 0)
-	if err != nil {
-		panic(err)
-	}
-	defer mus.Free()
-	defer mixOps.Close()
+	joysticks := make(map[sdl.JoystickID]*sdl.Joystick)
 
 	running := true
 	tick := time.Tick(time.Microsecond * 33333)
 
 	for running {
-
 		renderer.SetDrawColor(0, 0, 0, 255)
 		renderer.Clear()
 
@@ -179,52 +208,62 @@ func main() {
 		renderer.Present()
 
 		<-tick
-		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
-			switch t := event.(type) {
-			case *sdl.QuitEvent: // NOTE: Please use `*sdl.QuitEvent` for `v0.4.x` (current version).
-				println("Quit")
+
+		var event sdl.Event
+		for sdl.PollEvent(&event) {
+			switch event.Type {
+			case sdl.EVENT_QUIT:
+				fmt.Println("Quit")
 				running = false
-			case *sdl.JoyAxisEvent:
-				// Convert the value to a -1.0 - 1.0 range
-				value := float32(t.Value) / 32768.0
-				if t.Axis == 0 {
+			case sdl.EVENT_JOYSTICK_AXIS_MOTION:
+				ax := event.JoyAxisEvent()
+				value := float32(ax.Value) / 32768.0
+				switch ax.Axis {
+				case 0:
 					j1.joyX = value
-				} else if t.Axis == 1 {
+				case 1:
 					j1.joyY = value
-				} else if t.Axis == 2 {
+				case 2:
 					j2.joyX = value
-				} else if t.Axis == 3 {
+				case 3:
 					j2.joyY = value
 				}
-				//fmt.Printf("[%d ms] JoyAxis\ttype:%d\twhich:%c\taxis:%d\tvalue:%f\n",
-				//t.Timestamp, t.Type, t.Which, t.Axis, value)
-			case *sdl.JoyBallEvent:
-				fmt.Println("Joystick", t.Which, "trackball moved by", t.XRel, t.YRel)
-			case *sdl.JoyButtonEvent:
-				if t.State == sdl.PRESSED {
-					text.SetText(fmt.Sprintf("Button %d/%d pressed", t.Which, t.Button))
+			case sdl.EVENT_JOYSTICK_BALL_MOTION:
+				ball := event.JoyBallEvent()
+				fmt.Println("Joystick", ball.Which, "trackball moved by", ball.Xrel, ball.Yrel)
+			case sdl.EVENT_JOYSTICK_BUTTON_DOWN, sdl.EVENT_JOYSTICK_BUTTON_UP:
+				jb := event.JoyButtonEvent()
+				if jb.Down {
+					text.SetText(fmt.Sprintf("Button %d/%d pressed", jb.Which, jb.Button))
 				} else {
-					text.SetText(fmt.Sprintf("Button %d/%d released", t.Which, t.Button))
+					text.SetText(fmt.Sprintf("Button %d/%d released", jb.Which, jb.Button))
 				}
-				if t.Button == 14 {
-					j1.pressed = t.State == sdl.PRESSED
-				} else if t.Button == 15 {
-					j2.pressed = t.State == sdl.PRESSED
-				} else if t.Button == 2 && mix.Playing(-1) == 0 {
-					mus.Play(0)
+				if jb.Button == 14 {
+					j1.pressed = jb.Down
+				} else if jb.Button == 15 {
+					j2.pressed = jb.Down
+				} else if jb.Button == 2 && jb.Down && musicTrack != nil && !musicTrack.Playing() {
+					musicTrack.Play(0)
 				}
-			case *sdl.JoyDeviceAddedEvent:
-				// Open joystick for use
-				joysticks[int(t.Which)] = sdl.JoystickOpen(int(t.Which))
-				if joysticks[int(t.Which)] != nil {
-					fmt.Println("Joystick", t.Which, "connected")
+			case sdl.EVENT_JOYSTICK_ADDED:
+				jd := event.JoyDeviceEvent()
+				joystick, err := jd.Which.OpenJoystick()
+				if err == nil {
+					joysticks[jd.Which] = joystick
+					fmt.Println("Joystick", jd.Which, "connected")
 				}
-			case *sdl.JoyDeviceRemovedEvent:
-				if joystick := joysticks[int(t.Which)]; joystick != nil {
+			case sdl.EVENT_JOYSTICK_REMOVED:
+				jd := event.JoyDeviceEvent()
+				if joystick, ok := joysticks[jd.Which]; ok {
 					joystick.Close()
+					delete(joysticks, jd.Which)
 				}
-				fmt.Println("Joystick", t.Which, "disconnected")
+				fmt.Println("Joystick", jd.Which, "disconnected")
 			}
 		}
+	}
+
+	for _, joystick := range joysticks {
+		joystick.Close()
 	}
 }
