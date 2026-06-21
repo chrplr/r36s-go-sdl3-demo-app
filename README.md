@@ -1,10 +1,8 @@
 # R36S SDL3 Demo App
 
-This is a port to go-sdl3 of the code at <https://github.com/AndreRenaud/r36s-demo-app> demonstrating the feasibility of running go-sdlX programs to the r36s. See <https://ignavus.net/r36s> for more info about the original project.
+This is a port to go-sdl3 of the code at <https://github.com/AndreRenaud/r36s-demo-app> demonstrating the feasibility of running go-sdlX programs to the r36s, without needing to install any library on the r36s. See <https://ignavus.net/r36s> for more info about the original project.
 
 The program is a joystick input demo for the R36S handheld, built with [go-sdl3](https://github.com/Zyko0/go-sdl3). Displays two analog stick visualizations, reacts to button presses with text feedback, and plays audio. SDL3 is bundled inside the binary — no system SDL3 installation needed on the device.
-
-> As of 2026-06-21, the app compiles and runs on the R36S and reacts to joystick input: the sticks move the indicators, button presses are detected, and audio plays. The earlier "no reaction" issue was caused by the joystick subsystem not being initialized (`sdl.INIT_JOYSTICK` was missing from `sdl.Init`) and already-connected joysticks not being opened at startup.
 
 ## Prerequisites (build machine)
 
@@ -16,11 +14,10 @@ The program is a joystick input demo for the R36S handheld, built with [go-sdl3]
 GOOS=linux GOARCH=arm64 go build -o r36s-demo-app .
 ```
 
-No CGo, no cross-compiler toolchain needed.
 
 ## Installing on a R36S running ArkOS4Clone
 
-To make the app available on the R36S. 
+To make the app available on the R36S.
 
 1. Insert the SD card on your PC and set the variable EASYROMS to point to the EASYROM partition.
 
@@ -56,6 +53,6 @@ To make the app available on the R36S.
 |-------|--------|
 | Left stick | Move left joystick indicator |
 | Right stick | Move right joystick indicator |
-| Button 14 | Highlight left joystick (yellow) |
-| Button 15 | Highlight right joystick (yellow) |
+| Button 14 (left stick) | Highlight left joystick (yellow) |
+| Button 15 (right stick) | Highlight right joystick (yellow) |
 | Button 2 (X) | Play Cantina Band (if not already playing) |
