@@ -123,7 +123,7 @@ func main() {
 	sdl.SetHint(sdl.HINT_RENDER_DRIVER, "opengles2")
 	sdl.SetHint(sdl.HINT_AUDIO_DRIVER, "alsa")
 
-	if err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS | sdl.INIT_AUDIO); err != nil {
+	if err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS | sdl.INIT_AUDIO | sdl.INIT_JOYSTICK); err != nil {
 		log.Fatalf("SDL init: %s", err)
 	}
 	defer sdl.Quit()
@@ -243,6 +243,23 @@ func main() {
 	j2 := &JoystickDisplay{x: 540, y: 300, radius: 50}
 
 	joysticks := make(map[sdl.JoystickID]*sdl.Joystick)
+
+	// Open any joysticks that are already connected. EVENT_JOYSTICK_ADDED is
+	// not guaranteed to be delivered for devices present before init, and a
+	// joystick must be opened for its axis/button events to be delivered.
+	if ids, err := sdl.GetJoysticks(); err != nil {
+		log.Printf("GetJoysticks failed: %s", err)
+	} else {
+		for _, id := range ids {
+			joystick, err := id.OpenJoystick()
+			if err != nil {
+				log.Printf("OpenJoystick %d failed: %s", id, err)
+				continue
+			}
+			joysticks[id] = joystick
+			fmt.Println("Joystick", id, "opened at startup")
+		}
+	}
 
 	running := true
 	tick := time.Tick(time.Microsecond * 33333)

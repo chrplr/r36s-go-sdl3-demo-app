@@ -4,7 +4,7 @@ This is a port to go-sdl3 of the code at <https://github.com/AndreRenaud/r36s-de
 
 The program is a joystick input demo for the R36S handheld, built with [go-sdl3](https://github.com/Zyko0/go-sdl3). Displays two analog stick visualizations, reacts to button presses with text feedback, and plays audio. SDL3 is bundled inside the binary — no system SDL3 installation needed on the device.
 
-> As of 2026-04-06, I manage to compile and run the app on the R36S, but there is no reaction to the joystick input, so the program hangs, displaying two circles. The same thing happens on my linux laptop with a joystick plugged in, so I suppose the issue is not specific to the R36S, but rather to the port (done essentially by Claude).
+> As of 2026-06-21, the app compiles and runs on the R36S and reacts to joystick input: the sticks move the indicators, button presses are detected, and audio plays. The earlier "no reaction" issue was caused by the joystick subsystem not being initialized (`sdl.INIT_JOYSTICK` was missing from `sdl.Init`) and already-connected joysticks not being opened at startup.
 
 ## Prerequisites (build machine)
 
@@ -58,4 +58,4 @@ To make the app available on the R36S.
 | Right stick | Move right joystick indicator |
 | Button 14 | Highlight left joystick (yellow) |
 | Button 15 | Highlight right joystick (yellow) |
-| Button 2 (B) | Play Cantina Band (if not already playing) |
+| Button 2 (X) | Play Cantina Band (if not already playing) |
